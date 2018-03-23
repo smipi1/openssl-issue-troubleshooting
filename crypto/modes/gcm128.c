@@ -975,6 +975,7 @@ void CRYPTO_gcm128_setiv(GCM128_CONTEXT *ctx, const unsigned char *iv,
 int CRYPTO_gcm128_aad(GCM128_CONTEXT *ctx, const unsigned char *aad,
                       size_t len)
 {
+    log_buf("    CRYPTO_gcm128_aad:in:Xi", ctx->Xi.c, sizeof(ctx->Xi));
     size_t i;
     unsigned int n;
     u64 alen = ctx->len.u[0];
@@ -1030,6 +1031,7 @@ int CRYPTO_gcm128_aad(GCM128_CONTEXT *ctx, const unsigned char *aad,
     }
 
     ctx->ares = n;
+    log_buf("   CRYPTO_gcm128_aad:out:Xi", ctx->Xi.c, sizeof(ctx->Xi));
     return 0;
 }
 
@@ -1224,6 +1226,7 @@ int CRYPTO_gcm128_decrypt(GCM128_CONTEXT *ctx,
                           const unsigned char *in, unsigned char *out,
                           size_t len)
 {
+    log_buf("CRYPTO_gcm128_decrypt:in:Xi", ctx->Xi.c, sizeof(ctx->Xi));
     const union {
         long one;
         char little;
