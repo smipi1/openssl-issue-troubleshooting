@@ -1479,8 +1479,8 @@ static int aes_gcm_tls_cipher(EVP_CIPHER_CTX *ctx, unsigned char *out,
         CRYPTO_gcm128_tag(&gctx->gcm, ctx->buf, EVP_GCM_TLS_TAG_LEN);
         /* If tag mismatch wipe buffer */
         log_buf("gctx->gcm.key", gctx->gcm.key, 16);
-        log_buf("in", in, len);
         if (CRYPTO_memcmp(ctx->buf, in + len, EVP_GCM_TLS_TAG_LEN)) {
+            log_buf("in", in, len);
             log_bufs("tag MISMATCH", ctx->buf, in + len, EVP_GCM_TLS_TAG_LEN);
             OPENSSL_cleanse(out, len);
             if(ctx->encrypt) {
