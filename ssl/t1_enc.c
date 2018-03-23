@@ -782,8 +782,10 @@ int tls1_enc(SSL *s, int send)
                     fprintf(stderr,
                             "%s:%d: rec->data != rec->input\n",
                             __FILE__, __LINE__);
-                else if (RAND_bytes(rec->input, ivlen) <= 0)
+                else if (RAND_bytes(rec->input, ivlen) <= 0) {
+                    last_location(__FILE__, __LINE__);
                     return -1;
+                }
             }
         }
     } else {
@@ -838,8 +840,10 @@ int tls1_enc(SSL *s, int send)
             buf[12] = rec->length & 0xff;
             pad = EVP_CIPHER_CTX_ctrl(ds, EVP_CTRL_AEAD_TLS1_AAD,
                                       EVP_AEAD_TLS1_AAD_LEN, buf);
-            if (pad <= 0)
+            if (pad <= 0) {
+                last_location(__FILE__, __LINE__);
                 return -1;
+            }
             if (send) {
                 l += pad;
                 rec->length += pad;
@@ -882,15 +886,18 @@ int tls1_enc(SSL *s, int send)
 #endif                          /* KSSL_DEBUG */
 
         if (!send) {
-            if (l == 0 || l % bs != 0)
+            if (l == 0 || l % bs != 0) {
+                last_location(__FILE__, __LINE__);
                 return 0;
+            }
         }
 
         i = EVP_Cipher(ds, rec->data, rec->input, l);
         if ((EVP_CIPHER_flags(ds->cipher) & EVP_CIPH_FLAG_CUSTOM_CIPHER)
             ? (i < 0)
-            : (i == 0))
+            : (i == 0)) {
             return -1;          /* AEAD can fail to verify MAC */
+        }
         if (EVP_CIPHER_mode(enc) == EVP_CIPH_GCM_MODE && !send) {
             rec->data += EVP_GCM_TLS_EXPLICIT_IV_LEN;
             rec->input += EVP_GCM_TLS_EXPLICIT_IV_LEN;
@@ -914,6 +921,7 @@ int tls1_enc(SSL *s, int send)
         if (pad && !send)
             rec->length -= pad;
     }
+    last_location(__FILE__, __LINE__);
     return ret;
 }
 
@@ -1308,6 +1316,7 @@ int tls1_alert_code(int code)
     case SSL_AD_UNEXPECTED_MESSAGE:
         return (SSL3_AD_UNEXPECTED_MESSAGE);
     case SSL_AD_BAD_RECORD_MAC:
+        log_location(__FILE__, __LINE__);
         return (SSL3_AD_BAD_RECORD_MAC);
     case SSL_AD_DECRYPTION_FAILED:
         return (TLS1_AD_DECRYPTION_FAILED);

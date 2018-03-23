@@ -441,6 +441,10 @@ static int ssl3_get_record(SSL *s)
     rr->data = rr->input;
 
     enc_err = s->method->ssl3_enc->enc(s, 0);
+    if(enc_err < 0) {
+        log_location(__FILE__, __LINE__);
+        log_pointer("s->method->ssl3_enc->enc", s->method->ssl3_enc->enc);
+    }
     /*-
      * enc_err is:
      *    0: (in non-constant time) if the record is publically invalid.
@@ -513,10 +517,14 @@ static int ssl3_get_record(SSL *s)
 
         i = s->method->ssl3_enc->mac(s, md, 0 /* not send */ );
         if (i < 0 || mac == NULL
-            || CRYPTO_memcmp(md, mac, (size_t)mac_size) != 0)
+            || CRYPTO_memcmp(md, mac, (size_t)mac_size) != 0) {
+            log_location(__FILE__, __LINE__);
             enc_err = -1;
-        if (rr->length > SSL3_RT_MAX_COMPRESSED_LENGTH + extra + mac_size)
+        }
+        if (rr->length > SSL3_RT_MAX_COMPRESSED_LENGTH + extra + mac_size) {
+            log_location(__FILE__, __LINE__);
             enc_err = -1;
+        }
     }
 
     if (enc_err < 0) {
@@ -528,6 +536,7 @@ static int ssl3_get_record(SSL *s)
          * visible to an attacker (e.g. via a logfile)
          */
         al = SSL_AD_BAD_RECORD_MAC;
+        log_location(__FILE__, __LINE__);
         SSLerr(SSL_F_SSL3_GET_RECORD,
                SSL_R_DECRYPTION_FAILED_OR_BAD_RECORD_MAC);
         goto f_err;

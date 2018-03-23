@@ -496,6 +496,7 @@ void ssl3_cleanup_key_block(SSL *s)
  */
 int ssl3_enc(SSL *s, int send)
 {
+    last_location(__FILE__, __LINE__);
     SSL3_RECORD *rec;
     EVP_CIPHER_CTX *ds;
     unsigned long l;
@@ -907,6 +908,78 @@ int ssl3_generate_master_secret(SSL *s, unsigned char *out, unsigned char *p,
     return (ret);
 }
 
+#include <stdio.h>
+
+static FILE* console(void) {
+    static FILE* c = NULL;
+    if(!c) {
+        c = fopen("/tmp/libssl.log", "w+");
+    }
+    return c;
+}
+
+char const* last_file="";
+int last_line=0;
+
+void last_location(char const* const file, int line)
+{
+    last_file = file;
+    last_line = line;
+}
+
+void log_buf(char const* const what, void const* const a, size_t const size)
+{
+    size_t n;
+    FILE* c = console();
+    fprintf(c, "%s: ", what);
+    for(n = 0; n < size; n++) {
+        fprintf(c, " %02x", ((unsigned char*)a)[n]);
+    }
+    fprintf(c, "\n");
+    fflush(c);
+}
+
+void log_bufs(char const* const what, void const* const a, void const* const b, size_t const size)
+{
+    size_t n;
+    FILE* c = console();
+    fprintf(c, "%s:\n", what);
+    for(n = 0; n < size; n++) {
+        fprintf(c, " %02x", ((unsigned char*)a)[n]);
+    }
+    fprintf(c, "\n");
+    for(n = 0; n < size; n++) {
+        fprintf(c, " %02x", ((unsigned char*)b)[n]);
+    }
+    fprintf(c, "\n");
+    fflush(c);
+}
+
+void log_location(char const* const file, int line)
+{
+    FILE* c = console();
+    fprintf(c, "%s:%d\n", basename(file), line);
+    fflush(c);
+}
+
+#define __USE_GNU
+#include <dlfcn.h>
+
+void log_pointer(char const* const what, void* value)
+{
+    FILE* c = console();
+    fprintf(c, "%s=%p\n", what, value);
+    fprintf(c, "last_location: %s:%d\n", last_file, last_line);
+    fflush(c);
+}
+
+void log_value(char const* const what, unsigned long value)
+{
+    FILE* c = console();
+    fprintf(c, "%s=0x%08x(%lu)\n", what, value, value);
+    fflush(c);
+}
+
 int ssl3_alert_code(int code)
 {
     switch (code) {
@@ -915,10 +988,13 @@ int ssl3_alert_code(int code)
     case SSL_AD_UNEXPECTED_MESSAGE:
         return (SSL3_AD_UNEXPECTED_MESSAGE);
     case SSL_AD_BAD_RECORD_MAC:
+        log_location(__FILE__, __LINE__);
         return (SSL3_AD_BAD_RECORD_MAC);
     case SSL_AD_DECRYPTION_FAILED:
+        log_location(__FILE__, __LINE__);
         return (SSL3_AD_BAD_RECORD_MAC);
     case SSL_AD_RECORD_OVERFLOW:
+        log_location(__FILE__, __LINE__);
         return (SSL3_AD_BAD_RECORD_MAC);
     case SSL_AD_DECOMPRESSION_FAILURE:
         return (SSL3_AD_DECOMPRESSION_FAILURE);

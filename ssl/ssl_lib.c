@@ -2818,6 +2818,7 @@ void SSL_set_connect_state(SSL *s)
 
 int ssl_undefined_function(SSL *s)
 {
+    last_location(__FILE__, __LINE__);
     SSLerr(SSL_F_SSL_UNDEFINED_FUNCTION, ERR_R_SHOULD_NOT_HAVE_BEEN_CALLED);
     return (0);
 }

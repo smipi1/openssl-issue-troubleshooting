@@ -1358,19 +1358,25 @@ static int aes_gcm_tls_cipher(EVP_CIPHER_CTX *ctx, unsigned char *out,
     int rv = -1;
     /* Encrypt/decrypt must be performed in place */
     if (out != in
-        || len < (EVP_GCM_TLS_EXPLICIT_IV_LEN + EVP_GCM_TLS_TAG_LEN))
+        || len < (EVP_GCM_TLS_EXPLICIT_IV_LEN + EVP_GCM_TLS_TAG_LEN)) {
+        last_location(__FILE__, __LINE__);
         return -1;
+    }
     /*
      * Set IV from start of buffer or generate IV and write to start of
      * buffer.
      */
     if (EVP_CIPHER_CTX_ctrl(ctx, ctx->encrypt ?
                             EVP_CTRL_GCM_IV_GEN : EVP_CTRL_GCM_SET_IV_INV,
-                            EVP_GCM_TLS_EXPLICIT_IV_LEN, out) <= 0)
+                            EVP_GCM_TLS_EXPLICIT_IV_LEN, out) <= 0) {
+        last_location(__FILE__, __LINE__);
         goto err;
+    }
     /* Use saved AAD */
-    if (CRYPTO_gcm128_aad(&gctx->gcm, ctx->buf, gctx->tls_aad_len))
+    if (CRYPTO_gcm128_aad(&gctx->gcm, ctx->buf, gctx->tls_aad_len)) {
+        last_location(__FILE__, __LINE__);
         goto err;
+    }
     /* Fix buffer and length to point to payload */
     in += EVP_GCM_TLS_EXPLICIT_IV_LEN;
     out += EVP_GCM_TLS_EXPLICIT_IV_LEN;
@@ -1381,8 +1387,10 @@ static int aes_gcm_tls_cipher(EVP_CIPHER_CTX *ctx, unsigned char *out,
             size_t bulk = 0;
 # if defined(AES_GCM_ASM)
             if (len >= 32 && AES_GCM_ASM(gctx)) {
-                if (CRYPTO_gcm128_encrypt(&gctx->gcm, NULL, NULL, 0))
+                if (CRYPTO_gcm128_encrypt(&gctx->gcm, NULL, NULL, 0)) {
+                    last_location(__FILE__, __LINE__);
                     return -1;
+                }
 
                 bulk = AES_gcm_encrypt(in, out, len,
                                        gctx->gcm.key,
@@ -1393,14 +1401,18 @@ static int aes_gcm_tls_cipher(EVP_CIPHER_CTX *ctx, unsigned char *out,
             if (CRYPTO_gcm128_encrypt_ctr32(&gctx->gcm,
                                             in + bulk,
                                             out + bulk,
-                                            len - bulk, gctx->ctr))
+                                            len - bulk, gctx->ctr)) {
+                last_location(__FILE__, __LINE__);
                 goto err;
+            }
         } else {
             size_t bulk = 0;
 # if defined(AES_GCM_ASM2)
             if (len >= 32 && AES_GCM_ASM2(gctx)) {
-                if (CRYPTO_gcm128_encrypt(&gctx->gcm, NULL, NULL, 0))
+                if (CRYPTO_gcm128_encrypt(&gctx->gcm, NULL, NULL, 0)) {
+                    last_location(__FILE__, __LINE__);
                     return -1;
+                }
 
                 bulk = AES_gcm_encrypt(in, out, len,
                                        gctx->gcm.key,
@@ -1409,8 +1421,10 @@ static int aes_gcm_tls_cipher(EVP_CIPHER_CTX *ctx, unsigned char *out,
             }
 # endif
             if (CRYPTO_gcm128_encrypt(&gctx->gcm,
-                                      in + bulk, out + bulk, len - bulk))
+                                      in + bulk, out + bulk, len - bulk)) {
+                last_location(__FILE__, __LINE__);
                 goto err;
+            }
         }
         out += len;
         /* Finally write tag */
@@ -1422,8 +1436,10 @@ static int aes_gcm_tls_cipher(EVP_CIPHER_CTX *ctx, unsigned char *out,
             size_t bulk = 0;
 # if defined(AES_GCM_ASM)
             if (len >= 16 && AES_GCM_ASM(gctx)) {
-                if (CRYPTO_gcm128_decrypt(&gctx->gcm, NULL, NULL, 0))
+                if (CRYPTO_gcm128_decrypt(&gctx->gcm, NULL, NULL, 0)) {
+                    last_location(__FILE__, __LINE__);
                     return -1;
+                }
 
                 bulk = AES_gcm_decrypt(in, out, len,
                                        gctx->gcm.key,
@@ -1434,14 +1450,18 @@ static int aes_gcm_tls_cipher(EVP_CIPHER_CTX *ctx, unsigned char *out,
             if (CRYPTO_gcm128_decrypt_ctr32(&gctx->gcm,
                                             in + bulk,
                                             out + bulk,
-                                            len - bulk, gctx->ctr))
+                                            len - bulk, gctx->ctr)) {
+                last_location(__FILE__, __LINE__);
                 goto err;
+            }
         } else {
             size_t bulk = 0;
 # if defined(AES_GCM_ASM2)
             if (len >= 16 && AES_GCM_ASM2(gctx)) {
-                if (CRYPTO_gcm128_decrypt(&gctx->gcm, NULL, NULL, 0))
+                if (CRYPTO_gcm128_decrypt(&gctx->gcm, NULL, NULL, 0)) {
+                    last_location(__FILE__, __LINE__);
                     return -1;
+                }
 
                 bulk = AES_gcm_decrypt(in, out, len,
                                        gctx->gcm.key,
@@ -1450,15 +1470,27 @@ static int aes_gcm_tls_cipher(EVP_CIPHER_CTX *ctx, unsigned char *out,
             }
 # endif
             if (CRYPTO_gcm128_decrypt(&gctx->gcm,
-                                      in + bulk, out + bulk, len - bulk))
+                                      in + bulk, out + bulk, len - bulk)) {
+                last_location(__FILE__, __LINE__);
                 goto err;
+            }
         }
         /* Retrieve tag */
         CRYPTO_gcm128_tag(&gctx->gcm, ctx->buf, EVP_GCM_TLS_TAG_LEN);
         /* If tag mismatch wipe buffer */
+        log_buf("gctx->gcm.key", gctx->gcm.key, 16);
+        log_buf("in", in, len);
         if (CRYPTO_memcmp(ctx->buf, in + len, EVP_GCM_TLS_TAG_LEN)) {
+            log_bufs("ctx->buf != in + len", ctx->buf, in + len, EVP_GCM_TLS_TAG_LEN);
             OPENSSL_cleanse(out, len);
+            if(ctx->encrypt) {
+                last_location(__FILE__, __LINE__);
+            } else {
+                last_location(__FILE__, __LINE__);
+            }
             goto err;
+        } else {
+            log_bufs("ctx->buf == in + len", ctx->buf, in + len, EVP_GCM_TLS_TAG_LEN);
         }
         rv = len;
     }
@@ -1474,18 +1506,26 @@ static int aes_gcm_cipher(EVP_CIPHER_CTX *ctx, unsigned char *out,
 {
     EVP_AES_GCM_CTX *gctx = ctx->cipher_data;
     /* If not set up, return error */
-    if (!gctx->key_set)
+    if (!gctx->key_set) {
+        last_location(__FILE__, __LINE__);
         return -1;
+    }
 
-    if (gctx->tls_aad_len >= 0)
+    if (gctx->tls_aad_len >= 0) {
+        last_location(__FILE__, __LINE__);
         return aes_gcm_tls_cipher(ctx, out, in, len);
+    }
 
-    if (!gctx->iv_set)
+    if (!gctx->iv_set) {
+        last_location(__FILE__, __LINE__);
         return -1;
+    }
     if (in) {
         if (out == NULL) {
-            if (CRYPTO_gcm128_aad(&gctx->gcm, in, len))
+            if (CRYPTO_gcm128_aad(&gctx->gcm, in, len)) {
+                last_location(__FILE__, __LINE__);
                 return -1;
+            }
         } else if (ctx->encrypt) {
             if (gctx->ctr) {
                 size_t bulk = 0;
@@ -1493,8 +1533,10 @@ static int aes_gcm_cipher(EVP_CIPHER_CTX *ctx, unsigned char *out,
                 if (len >= 32 && AES_GCM_ASM(gctx)) {
                     size_t res = (16 - gctx->gcm.mres) % 16;
 
-                    if (CRYPTO_gcm128_encrypt(&gctx->gcm, in, out, res))
+                    if (CRYPTO_gcm128_encrypt(&gctx->gcm, in, out, res)) {
+                        last_location(__FILE__, __LINE__);
                         return -1;
+                    }
 
                     bulk = AES_gcm_encrypt(in + res,
                                            out + res, len - res,
@@ -1507,16 +1549,20 @@ static int aes_gcm_cipher(EVP_CIPHER_CTX *ctx, unsigned char *out,
                 if (CRYPTO_gcm128_encrypt_ctr32(&gctx->gcm,
                                                 in + bulk,
                                                 out + bulk,
-                                                len - bulk, gctx->ctr))
+                                                len - bulk, gctx->ctr)) {
+                    last_location(__FILE__, __LINE__);
                     return -1;
+                }
             } else {
                 size_t bulk = 0;
 # if defined(AES_GCM_ASM2)
                 if (len >= 32 && AES_GCM_ASM2(gctx)) {
                     size_t res = (16 - gctx->gcm.mres) % 16;
 
-                    if (CRYPTO_gcm128_encrypt(&gctx->gcm, in, out, res))
+                    if (CRYPTO_gcm128_encrypt(&gctx->gcm, in, out, res)) {
+                        last_location(__FILE__, __LINE__);
                         return -1;
+                    }
 
                     bulk = AES_gcm_encrypt(in + res,
                                            out + res, len - res,
@@ -1527,8 +1573,10 @@ static int aes_gcm_cipher(EVP_CIPHER_CTX *ctx, unsigned char *out,
                 }
 # endif
                 if (CRYPTO_gcm128_encrypt(&gctx->gcm,
-                                          in + bulk, out + bulk, len - bulk))
+                                          in + bulk, out + bulk, len - bulk)) {
+                    last_location(__FILE__, __LINE__);
                     return -1;
+                }
             }
         } else {
             if (gctx->ctr) {
@@ -1537,8 +1585,10 @@ static int aes_gcm_cipher(EVP_CIPHER_CTX *ctx, unsigned char *out,
                 if (len >= 16 && AES_GCM_ASM(gctx)) {
                     size_t res = (16 - gctx->gcm.mres) % 16;
 
-                    if (CRYPTO_gcm128_decrypt(&gctx->gcm, in, out, res))
+                    if (CRYPTO_gcm128_decrypt(&gctx->gcm, in, out, res)) {
+                        last_location(__FILE__, __LINE__);
                         return -1;
+                    }
 
                     bulk = AES_gcm_decrypt(in + res,
                                            out + res, len - res,
@@ -1551,16 +1601,20 @@ static int aes_gcm_cipher(EVP_CIPHER_CTX *ctx, unsigned char *out,
                 if (CRYPTO_gcm128_decrypt_ctr32(&gctx->gcm,
                                                 in + bulk,
                                                 out + bulk,
-                                                len - bulk, gctx->ctr))
+                                                len - bulk, gctx->ctr)) {
+                    last_location(__FILE__, __LINE__);
                     return -1;
+                }
             } else {
                 size_t bulk = 0;
 # if defined(AES_GCM_ASM2)
                 if (len >= 16 && AES_GCM_ASM2(gctx)) {
                     size_t res = (16 - gctx->gcm.mres) % 16;
 
-                    if (CRYPTO_gcm128_decrypt(&gctx->gcm, in, out, res))
+                    if (CRYPTO_gcm128_decrypt(&gctx->gcm, in, out, res)) {
+                        last_location(__FILE__, __LINE__);
                         return -1;
+                    }
 
                     bulk = AES_gcm_decrypt(in + res,
                                            out + res, len - res,
@@ -1571,24 +1625,33 @@ static int aes_gcm_cipher(EVP_CIPHER_CTX *ctx, unsigned char *out,
                 }
 # endif
                 if (CRYPTO_gcm128_decrypt(&gctx->gcm,
-                                          in + bulk, out + bulk, len - bulk))
+                                          in + bulk, out + bulk, len - bulk)) {
+                    last_location(__FILE__, __LINE__);
                     return -1;
+                }
             }
         }
+        last_location(__FILE__, __LINE__);
         return len;
     } else {
         if (!ctx->encrypt) {
-            if (gctx->taglen < 0)
+            if (gctx->taglen < 0) {
+                last_location(__FILE__, __LINE__);
                 return -1;
-            if (CRYPTO_gcm128_finish(&gctx->gcm, ctx->buf, gctx->taglen) != 0)
+            }
+            if (CRYPTO_gcm128_finish(&gctx->gcm, ctx->buf, gctx->taglen) != 0) {
+                last_location(__FILE__, __LINE__);
                 return -1;
+            }
             gctx->iv_set = 0;
+            last_location(__FILE__, __LINE__);
             return 0;
         }
         CRYPTO_gcm128_tag(&gctx->gcm, ctx->buf, 16);
         gctx->taglen = 16;
         /* Don't reuse the IV */
         gctx->iv_set = 0;
+        last_location(__FILE__, __LINE__);
         return 0;
     }
 
