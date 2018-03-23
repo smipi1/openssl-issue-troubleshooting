@@ -1471,7 +1471,7 @@ static int aes_gcm_tls_cipher(EVP_CIPHER_CTX *ctx, unsigned char *out,
 # endif
             if (CRYPTO_gcm128_decrypt(&gctx->gcm,
                                       in + bulk, out + bulk, len - bulk)) {
-                last_location(__FILE__, __LINE__);
+                log_location(__FILE__, __LINE__);
                 goto err;
             }
         }
@@ -1481,16 +1481,16 @@ static int aes_gcm_tls_cipher(EVP_CIPHER_CTX *ctx, unsigned char *out,
         log_buf("gctx->gcm.key", gctx->gcm.key, 16);
         log_buf("in", in, len);
         if (CRYPTO_memcmp(ctx->buf, in + len, EVP_GCM_TLS_TAG_LEN)) {
-            log_bufs("ctx->buf != in + len", ctx->buf, in + len, EVP_GCM_TLS_TAG_LEN);
+            log_bufs("tag MISMATCH", ctx->buf, in + len, EVP_GCM_TLS_TAG_LEN);
             OPENSSL_cleanse(out, len);
             if(ctx->encrypt) {
-                last_location(__FILE__, __LINE__);
+                log_location(__FILE__, __LINE__);
             } else {
-                last_location(__FILE__, __LINE__);
+                log_location(__FILE__, __LINE__);
             }
             goto err;
         } else {
-            log_bufs("ctx->buf == in + len", ctx->buf, in + len, EVP_GCM_TLS_TAG_LEN);
+            log_buf("tag OK", ctx->buf, EVP_GCM_TLS_TAG_LEN);
         }
         rv = len;
     }
