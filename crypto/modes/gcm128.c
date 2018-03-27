@@ -82,6 +82,8 @@
         } \
 } while(0)
 
+void log_value(char const* const what, unsigned long long value);
+
 /*-
  * Even though permitted values for TABLE_BITS are 8, 4 and 1, it should
  * never be set to 8. 8 is effectively reserved for testing purposes.
@@ -782,7 +784,12 @@ void CRYPTO_gcm128_init(GCM128_CONTEXT *ctx, void *key, block128_f block)
     ctx->block = block;
     ctx->key = key;
 
+    log_buf("ctx->key", ctx->key, sizeof(ctx->H));
+    log_buf("init:ctx->H", ctx->H.c, sizeof(ctx->H));
+
     (*block) (ctx->H.c, ctx->H.c, key);
+
+    log_buf("block:ctx->H", ctx->H.c, sizeof(ctx->H));
 
     if (is_endian.little) {
         /* H is stored in host byte order */
@@ -911,6 +918,10 @@ void CRYPTO_gcm128_setiv(GCM128_CONTEXT *ctx, const unsigned char *iv,
     ctx->ares = 0;
     ctx->mres = 0;
 
+    log_buf("       CRYPTO_gcm128_setiv:iv", iv, len);
+    log_buf("       CRYPTO_gcm128_setiv:Xi", ctx->Xi.c, sizeof(ctx->Xi));
+    log_buf("       CRYPTO_gcm128_setiv:Yi", ctx->Yi.c, sizeof(ctx->Yi));
+
     if (len == 12) {
         memcpy(ctx->Yi.c, iv, 12);
         ctx->Yi.c[15] = 1;
@@ -975,10 +986,11 @@ void CRYPTO_gcm128_setiv(GCM128_CONTEXT *ctx, const unsigned char *iv,
 int CRYPTO_gcm128_aad(GCM128_CONTEXT *ctx, const unsigned char *aad,
                       size_t len)
 {
-    log_buf("    CRYPTO_gcm128_aad:in:Xi", ctx->Xi.c, sizeof(ctx->Xi));
+    log_buf("         CRYPTO_gcm128_aad:Xi", ctx->Xi.c, sizeof(ctx->Xi));
     size_t i;
     unsigned int n;
     u64 alen = ctx->len.u[0];
+
 #ifdef GCM_FUNCREF_4BIT
     void (*gcm_gmult_p) (u64 Xi[2], const u128 Htable[16]) = ctx->gmult;
 # ifdef GHASH
@@ -994,6 +1006,9 @@ int CRYPTO_gcm128_aad(GCM128_CONTEXT *ctx, const unsigned char *aad,
     if (alen > (U64(1) << 61) || (sizeof(len) == 8 && alen < len))
         return -1;
     ctx->len.u[0] = alen;
+
+    log_value("CRYPTO_gcm128_aad:alen", alen);
+    log_value("CRYPTO_gcm128_aad:ctx->ares", ctx->ares);
 
     n = ctx->ares;
     if (n) {
@@ -1031,7 +1046,7 @@ int CRYPTO_gcm128_aad(GCM128_CONTEXT *ctx, const unsigned char *aad,
     }
 
     ctx->ares = n;
-    log_buf("   CRYPTO_gcm128_aad:out:Xi", ctx->Xi.c, sizeof(ctx->Xi));
+    log_buf("  CRYPTO_gcm128_aad:result:Xi", ctx->Xi.c, sizeof(ctx->Xi));
     return 0;
 }
 
@@ -1039,6 +1054,7 @@ int CRYPTO_gcm128_encrypt(GCM128_CONTEXT *ctx,
                           const unsigned char *in, unsigned char *out,
                           size_t len)
 {
+    log_buf("        CRYPTO_gcm128_encrypt", 0, 0);
     const union {
         long one;
         char little;
@@ -1226,7 +1242,11 @@ int CRYPTO_gcm128_decrypt(GCM128_CONTEXT *ctx,
                           const unsigned char *in, unsigned char *out,
                           size_t len)
 {
-    log_buf("CRYPTO_gcm128_decrypt:in:Xi", ctx->Xi.c, sizeof(ctx->Xi));
+    log_canonical("CRYPTO_gcm128_decrypt:input", in, len);
+
+    log_buf("    CRYPTO_gcm128_decrypt:key", ctx->key, sizeof(ctx->H));
+    log_buf(" CRYPTO_gcm128_decrypt:ctx->H", ctx->H.c, sizeof(ctx->H));
+    log_buf("     CRYPTO_gcm128_decrypt:Xi", ctx->Xi.c, sizeof(ctx->Xi));
     const union {
         long one;
         char little;
@@ -1234,9 +1254,9 @@ int CRYPTO_gcm128_decrypt(GCM128_CONTEXT *ctx,
         1
     };
     unsigned int n, ctr;
-    size_t i;
     u64 mlen = ctx->len.u[1];
     block128_f block = ctx->block;
+    size_t i;
     void *key = ctx->key;
 #ifdef GCM_FUNCREF_4BIT
     void (*gcm_gmult_p) (u64 Xi[2], const u128 Htable[16]) = ctx->gmult;
@@ -1251,10 +1271,14 @@ int CRYPTO_gcm128_decrypt(GCM128_CONTEXT *ctx,
         return -1;
     ctx->len.u[1] = mlen;
 
+    log_value("len", len);
+    log_value("mlen", mlen);
+
     if (ctx->ares) {
         /* First call to decrypt finalizes GHASH(AAD) */
         GCM_MUL(ctx, Xi);
         ctx->ares = 0;
+        log_buf("CRYPTO_gcm128_decrypt:ares:Xi", ctx->Xi.c, sizeof(ctx->Xi));
     }
 
     if (is_endian.little)
@@ -1392,6 +1416,8 @@ int CRYPTO_gcm128_decrypt(GCM128_CONTEXT *ctx,
     for (i = 0; i < len; ++i) {
         u8 c;
         if (n == 0) {
+            unsigned int rem = (len - i) < sizeof(ctx->Yi) ? (len - i) : sizeof(ctx->Yi);
+            log_buf("   CRYPTO_gcm128_decrypt:in[]", in + i, rem);
             (*block) (ctx->Yi.c, ctx->EKi.c, key);
             ++ctr;
             if (is_endian.little)
@@ -1407,11 +1433,16 @@ int CRYPTO_gcm128_decrypt(GCM128_CONTEXT *ctx,
         out[i] = c ^ ctx->EKi.c[n];
         ctx->Xi.c[n] ^= c;
         n = (n + 1) % 16;
-        if (n == 0)
+        if (n == 0) {
+            log_buf("  CRYPTO_gcm128_decrypt:in:Xi", ctx->Xi.c, sizeof(ctx->Xi));
             GCM_MUL(ctx, Xi);
+            log_buf(" CRYPTO_gcm128_decrypt:mul:Xi", ctx->Xi.c, sizeof(ctx->Xi));
+        }
     }
 
+    log_buf(" CRYPTO_gcm128_decrypt:out:Xi", ctx->Xi.c, sizeof(ctx->Xi));
     ctx->mres = n;
+    log_value("ctx->mres = n", n);
     return 0;
 }
 
@@ -1419,6 +1450,7 @@ int CRYPTO_gcm128_encrypt_ctr32(GCM128_CONTEXT *ctx,
                                 const unsigned char *in, unsigned char *out,
                                 size_t len, ctr128_f stream)
 {
+    log_buf("  CRYPTO_gcm128_encrypt_ctr32", 0, 0);
     const union {
         long one;
         char little;
@@ -1541,6 +1573,7 @@ int CRYPTO_gcm128_decrypt_ctr32(GCM128_CONTEXT *ctx,
                                 const unsigned char *in, unsigned char *out,
                                 size_t len, ctr128_f stream)
 {
+    log_buf("  CRYPTO_gcm128_decrypt_ctr32", 0, 0);
     const union {
         long one;
         char little;
@@ -1677,12 +1710,20 @@ int CRYPTO_gcm128_finish(GCM128_CONTEXT *ctx, const unsigned char *tag,
     };
     u64 alen = ctx->len.u[0] << 3;
     u64 clen = ctx->len.u[1] << 3;
+    log_value("alen", alen);
+    log_value("clen", clen);
+
 #ifdef GCM_FUNCREF_4BIT
     void (*gcm_gmult_p) (u64 Xi[2], const u128 Htable[16]) = ctx->gmult;
 #endif
 
-    if (ctx->mres || ctx->ares)
+    log_buf("      CRYPTO_gcm128_finish:Xi", ctx->Xi.c, sizeof(ctx->Xi));
+    log_value("ctx->mres", ctx->mres);
+    log_value("ctx->ares", ctx->ares);
+    if (ctx->mres || ctx->ares) {
         GCM_MUL(ctx, Xi);
+        log_buf("  CRYPTO_gcm128_finish:res:Xi", ctx->Xi.c, sizeof(ctx->Xi));
+    }
 
     if (is_endian.little) {
 #ifdef BSWAP8
@@ -1699,12 +1740,28 @@ int CRYPTO_gcm128_finish(GCM128_CONTEXT *ctx, const unsigned char *tag,
 #endif
     }
 
+    union {
+        u64 u[2];
+        u32 d[4];
+        u8 c[16];
+        size_t t[16 / sizeof(size_t)];
+    } aclen;
+    aclen.u[0] = alen;
+    aclen.u[1] = clen;
+    log_buf("   CRYPTO_gcm128_finish:aclen", aclen.c, sizeof(aclen));
+
     ctx->Xi.u[0] ^= alen;
     ctx->Xi.u[1] ^= clen;
-    GCM_MUL(ctx, Xi);
+    log_buf("  CRYPTO_gcm128_finish:len:Xi", ctx->Xi.c, sizeof(ctx->Xi));
 
+    GCM_MUL(ctx, Xi);
+    log_buf("  CRYPTO_gcm128_finish:mul:Xi", ctx->Xi.c, sizeof(ctx->Xi));
+
+    log_buf("     CRYPTO_gcm128_finish:EK0", ctx->EK0.c, sizeof(ctx->EK0));
     ctx->Xi.u[0] ^= ctx->EK0.u[0];
     ctx->Xi.u[1] ^= ctx->EK0.u[1];
+
+    log_buf("  CRYPTO_gcm128_finish:end:Xi", ctx->Xi.c, sizeof(ctx->Xi));
 
     if (tag && len <= sizeof(ctx->Xi))
         return CRYPTO_memcmp(ctx->Xi.c, tag, len);

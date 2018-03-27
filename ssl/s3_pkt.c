@@ -183,7 +183,11 @@ int ssl3_read_n(SSL *s, int n, int max, int extend)
                  * effect on memmove arguments and therefore no buffer
                  * overrun can be triggered.
                  */
+                log_pointer("from", pkt);
+                log_pointer("to", rb->buf + align);
+                log_canonical("ssl3_read_n:memmove:align:from", pkt, left);
                 memmove(rb->buf + align, pkt, left);
+                log_canonical("ssl3_read_n:memmove:align:to", rb->buf + align, left);
                 rb->offset = align;
             }
         }
@@ -221,7 +225,11 @@ int ssl3_read_n(SSL *s, int n, int max, int extend)
      * pointed to by 'packet', 'left' extra ones at the end
      */
     if (s->packet != pkt) {     /* len > 0 */
+        log_pointer("from", s->packet);
+        log_pointer("to", pkt);
+        log_canonical("ssl3_read_n:memmove:from", s->packet, len + left);
         memmove(pkt, s->packet, len + left);
+        log_canonical("ssl3_read_n:memmove:to", pkt, len + left);
         s->packet = pkt;
         rb->offset = len + align;
     }
@@ -253,6 +261,9 @@ int ssl3_read_n(SSL *s, int n, int max, int extend)
         if (s->rbio != NULL) {
             s->rwstate = SSL_READING;
             i = BIO_read(s->rbio, pkt + len + left, max - left);
+            if(i > 0) {
+                log_canonical("ssl3_read_n:BIO_read", pkt + len + left, i);
+            }
         } else {
             SSLerr(SSL_F_SSL3_READ_N, SSL_R_READ_BIO_NOT_SET);
             i = -1;
@@ -417,6 +428,7 @@ static int ssl3_get_record(SSL *s)
      * and we have that many bytes in s->packet
      */
     rr->input = &(s->packet[SSL3_RT_HEADER_LENGTH]);
+    log_canonical("ssl3_get_record:packet", s->packet, s->packet_length);
 
     /*
      * ok, we can now read from 's->packet' data into 'rr' rr->input points
@@ -439,6 +451,8 @@ static int ssl3_get_record(SSL *s)
 
     /* decrypt in place in 'rr->input' */
     rr->data = rr->input;
+
+    log_canonical("ssl3_get_record:input", rr->input, rr->length);
 
     enc_err = s->method->ssl3_enc->enc(s, 0);
     if(enc_err < 0) {

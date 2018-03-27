@@ -927,6 +927,21 @@ void last_location(char const* const file, int line)
     last_line = line;
 }
 
+void log_canonical(char const* const what, void const* const a, size_t const size)
+{
+    size_t n;
+    FILE* c = console();
+    fprintf(c, "%s:", what);
+    for(n = 0; n < size; n++) {
+        if(n % 16 == 0) {
+            fprintf(c, "\n");
+        }
+        fprintf(c, " %02x", ((unsigned char*)a)[n]);
+    }
+    fprintf(c, "\n");
+    fflush(c);
+}
+
 void log_buf(char const* const what, void const* const a, size_t const size)
 {
     size_t n;
@@ -973,10 +988,10 @@ void log_pointer(char const* const what, void* value)
     fflush(c);
 }
 
-void log_value(char const* const what, unsigned long value)
+void log_value(char const* const what, unsigned long long value)
 {
     FILE* c = console();
-    fprintf(c, "%s=0x%08x(%lu)\n", what, value, value);
+    fprintf(c, "%s=0x%08x(%llu)\n", what, value, value);
     fflush(c);
 }
 
